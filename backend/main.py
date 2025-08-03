@@ -14,6 +14,7 @@ import uuid
 import os
 from datetime import datetime
 import logging
+import asyncio
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -285,6 +286,6 @@ def generate_intelligent_response(query: str, options: Dict[str, Any]) -> Dict[s
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 10000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
     print(f"🚀 Server running on port {port}")
     print(f"📡 API endpoint: http://0.0.0.0:{port}/api/v1/hackrx/run")
