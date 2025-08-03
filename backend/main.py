@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Any
 import json
 import time
 import uuid
+import os
 from datetime import datetime
 import logging
 
@@ -283,4 +284,4 @@ def generate_intelligent_response(query: str, options: Dict[str, Any]) -> Dict[s
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=3000)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 3000)))
