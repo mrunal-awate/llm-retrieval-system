@@ -284,4 +284,7 @@ def generate_intelligent_response(query: str, options: Dict[str, Any]) -> Dict[s
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 3000)))
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
+    print(f"🚀 Server running on port {port}")
+    print(f"📡 API endpoint: http://0.0.0.0:{port}/api/v1/hackrx/run")
