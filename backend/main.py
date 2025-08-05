@@ -1,6 +1,6 @@
 """
 Bajaj Hackathon - LLM-Powered Intelligent Query-Retrieval System
-Simplified FastAPI application without Pydantic dependencies
+Simplified FastAPI application without complex dependencies
 """
 
 from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Header
@@ -111,70 +111,6 @@ async def process_query(
         logger.error(f"Error processing query: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Query processing failed: {str(e)}")
 
-@app.post("/api/v1/documents/upload")
-async def upload_documents(
-    files: List[UploadFile] = File(...),
-    metadata: Optional[str] = Form(None),
-    token: str = Depends(verify_token)
-):
-    """Upload and process documents (PDF, DOCX, Email)"""
-    try:
-        uploaded_docs = []
-        
-        for file in files:
-            # Validate file type
-            if not file.filename.lower().endswith(('.pdf', '.docx', '.doc', '.eml', '.msg')):
-                raise HTTPException(status_code=400, detail=f"Unsupported file type: {file.filename}")
-            
-            # Simulate document processing
-            doc_id = str(uuid.uuid4())
-            doc_metadata = {
-                "id": doc_id,
-                "name": file.filename,
-                "type": file.content_type or "application/octet-stream",
-                "size": 0,  # Would be file.size in real implementation
-                "uploadedAt": datetime.now().isoformat(),
-                "processed": True,
-                "clauses": simulate_clause_extraction()
-            }
-            
-            documents_db[doc_id] = doc_metadata
-            uploaded_docs.append(doc_metadata)
-            
-            logger.info(f"Processed document: {file.filename}")
-        
-        return {
-            "message": f"Successfully uploaded and processed {len(files)} documents",
-            "documents": uploaded_docs
-        }
-        
-    except Exception as e:
-        logger.error(f"Error uploading documents: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Document upload failed: {str(e)}")
-
-@app.get("/api/v1/documents")
-async def list_documents(
-    limit: Optional[int] = 10,
-    offset: Optional[int] = 0,
-    token: str = Depends(verify_token)
-):
-    """List uploaded documents with pagination"""
-    try:
-        docs = list(documents_db.values())
-        total = len(docs)
-        paginated_docs = docs[offset:offset + limit]
-        
-        return {
-            "documents": paginated_docs,
-            "total": total,
-            "limit": limit,
-            "offset": offset
-        }
-        
-    except Exception as e:
-        logger.error(f"Error listing documents: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to list documents: {str(e)}")
-
 @app.get("/api/v1/health")
 async def health_check():
     """Health check endpoint"""
@@ -188,11 +124,6 @@ async def health_check():
 async def simulate_processing_delay():
     """Simulate realistic processing time"""
     await asyncio.sleep(0.5)  # Simulate processing delay
-
-def simulate_clause_extraction():
-    """Simulate clause extraction from documents"""
-    import random
-    return random.randint(10, 50)
 
 def generate_intelligent_response(query: str, options: Dict[str, Any]) -> Dict[str, Any]:
     """
