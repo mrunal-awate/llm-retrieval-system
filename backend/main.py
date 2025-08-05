@@ -1,12 +1,10 @@
 """
 Bajaj Hackathon - LLM-Powered Intelligent Query-Retrieval System
-Main FastAPI application with all required endpoints
+Simplified FastAPI application without Pydantic dependencies
 """
 
-from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, Header
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 import json
 import time
@@ -35,54 +33,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Security
-security = HTTPBearer()
-
-# Pydantic models
-class QueryRequest(BaseModel):
-    query: str
-    documents: Optional[List[str]] = None
-    options: Optional[Dict[str, Any]] = {
-        "include_reasoning": True,
-        "max_sources": 5,
-        "confidence_threshold": 0.7
-    }
-
-class Source(BaseModel):
-    document: str
-    clause: str
-    relevance: float
-    page: Optional[int] = None
-
-class QueryResponse(BaseModel):
-    query: str
-    answer: str
-    confidence: float
-    sources: List[Source]
-    reasoning: str
-    timestamp: str
-    processingTime: int
-
-class DocumentMetadata(BaseModel):
-    id: str
-    name: str
-    type: str
-    size: int
-    uploadedAt: str
-    processed: bool
-    clauses: int
-
 # Mock database
 documents_db = {}
 processed_documents = {}
 
-def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+def verify_token(authorization: str = Header(None)):
     """Verify Bearer token"""
-    token = credentials.credentials
-    # In production, implement proper token verification
-    if token != "7e3d7d4298f67b2d8e7a6c9e7e4a3f9d09f5e8d4de6e7d5f":
-        raise HTTPException(status_code=401, detail="Invalid authentication token")
-    return token
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    try:
+        scheme, token = authorization.split()
+        if scheme.lower() != "bearer":
+            raise HTTPException(status_code=401, detail="Invalid authentication scheme")
+        
+        # In production, implement proper token verification
+        if token != "7e3d7d4298f67b2d8e7a6c9e7e4a3f9d09f5e8d4de6e7d5f":
+            raise HTTPException(status_code=401, detail="Invalid authentication token")
+        return token
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid authorization header format")
 
 @app.get("/")
 async def root():
@@ -93,9 +63,9 @@ async def root():
         "status": "active"
     }
 
-@app.post("/api/v1/hackrx/run", response_model=QueryResponse)
+@app.post("/api/v1/hackrx/run")
 async def process_query(
-    request: QueryRequest,
+    request: dict,
     token: str = Depends(verify_token)
 ):
     """
@@ -105,25 +75,37 @@ async def process_query(
     start_time = time.time()
     
     try:
-        logger.info(f"Processing query: {request.query}")
+        # Validate request
+        if not request.get("query"):
+            raise HTTPException(status_code=400, detail="Query is required")
+        
+        query = request["query"]
+        documents = request.get("documents", [])
+        options = request.get("options", {
+            "include_reasoning": True,
+            "max_sources": 5,
+            "confidence_threshold": 0.7
+        })
+        
+        logger.info(f"Processing query: {query}")
         
         # Simulate document processing and semantic search
         await simulate_processing_delay()
         
         # Generate mock response based on query
-        response = generate_intelligent_response(request.query, request.options)
+        response = generate_intelligent_response(query, options)
         
         processing_time = int((time.time() - start_time) * 1000)
         
-        return QueryResponse(
-            query=request.query,
-            answer=response["answer"],
-            confidence=response["confidence"],
-            sources=response["sources"],
-            reasoning=response["reasoning"],
-            timestamp=datetime.now().isoformat(),
-            processingTime=processing_time
-        )
+        return {
+            "query": query,
+            "answer": response["answer"],
+            "confidence": response["confidence"],
+            "sources": response["sources"],
+            "reasoning": response["reasoning"],
+            "timestamp": datetime.now().isoformat(),
+            "processingTime": processing_time
+        }
         
     except Exception as e:
         logger.error(f"Error processing query: {str(e)}")
@@ -146,15 +128,15 @@ async def upload_documents(
             
             # Simulate document processing
             doc_id = str(uuid.uuid4())
-            doc_metadata = DocumentMetadata(
-                id=doc_id,
-                name=file.filename,
-                type=file.content_type or "application/octet-stream",
-                size=0,  # Would be file.size in real implementation
-                uploadedAt=datetime.now().isoformat(),
-                processed=True,
-                clauses=simulate_clause_extraction()
-            )
+            doc_metadata = {
+                "id": doc_id,
+                "name": file.filename,
+                "type": file.content_type or "application/octet-stream",
+                "size": 0,  # Would be file.size in real implementation
+                "uploadedAt": datetime.now().isoformat(),
+                "processed": True,
+                "clauses": simulate_clause_extraction()
+            }
             
             documents_db[doc_id] = doc_metadata
             uploaded_docs.append(doc_metadata)
@@ -205,7 +187,6 @@ async def health_check():
 # Helper functions
 async def simulate_processing_delay():
     """Simulate realistic processing time"""
-    import asyncio
     await asyncio.sleep(0.5)  # Simulate processing delay
 
 def simulate_clause_extraction():
@@ -225,24 +206,24 @@ def generate_intelligent_response(query: str, options: Dict[str, Any]) -> Dict[s
             "answer": "Based on the analyzed policy documents, knee surgery is covered under the medical benefits section with specific conditions. The policy requires pre-authorization for elective procedures and covers up to 80% of the cost after the deductible is met. Coverage includes both emergency and planned surgeries, with a maximum benefit limit of $50,000 per incident.",
             "confidence": 0.87,
             "sources": [
-                Source(
-                    document="Health_Insurance_Policy_2024.pdf",
-                    clause="Section 4.2.1 - Orthopedic Surgery Coverage",
-                    relevance=0.94,
-                    page=15
-                ),
-                Source(
-                    document="Medical_Benefits_Guide.docx",
-                    clause="Chapter 3 - Surgical Procedures",
-                    relevance=0.87,
-                    page=8
-                ),
-                Source(
-                    document="Policy_Terms_Conditions.pdf",
-                    clause="Article 7.1 - Pre-authorization Requirements",
-                    relevance=0.82,
-                    page=23
-                )
+                {
+                    "document": "Health_Insurance_Policy_2024.pdf",
+                    "clause": "Section 4.2.1 - Orthopedic Surgery Coverage",
+                    "relevance": 0.94,
+                    "page": 15
+                },
+                {
+                    "document": "Medical_Benefits_Guide.docx",
+                    "clause": "Chapter 3 - Surgical Procedures",
+                    "relevance": 0.87,
+                    "page": 8
+                },
+                {
+                    "document": "Policy_Terms_Conditions.pdf",
+                    "clause": "Article 7.1 - Pre-authorization Requirements",
+                    "relevance": 0.82,
+                    "page": 23
+                }
             ],
             "reasoning": "The system analyzed multiple policy documents and identified relevant clauses using semantic similarity matching. Key factors considered include: surgical procedure classification, medical necessity criteria, benefit limits, and pre-authorization requirements. The confidence score reflects the alignment between query intent and document content."
         }
@@ -252,18 +233,18 @@ def generate_intelligent_response(query: str, options: Dict[str, Any]) -> Dict[s
             "answer": "Pre-authorization is required for all elective medical procedures, including surgeries, specialized treatments, and diagnostic procedures exceeding $1,000. The process must be initiated at least 48 hours before the procedure through the online portal or by calling the pre-auth helpline. Emergency procedures are exempt from pre-authorization requirements.",
             "confidence": 0.92,
             "sources": [
-                Source(
-                    document="Policy_Terms_Conditions.pdf",
-                    clause="Article 7.1 - Pre-authorization Requirements",
-                    relevance=0.96,
-                    page=23
-                ),
-                Source(
-                    document="Claims_Processing_Guide.pdf",
-                    clause="Section 2.3 - Authorization Procedures",
-                    relevance=0.89,
-                    page=12
-                )
+                {
+                    "document": "Policy_Terms_Conditions.pdf",
+                    "clause": "Article 7.1 - Pre-authorization Requirements",
+                    "relevance": 0.96,
+                    "page": 23
+                },
+                {
+                    "document": "Claims_Processing_Guide.pdf",
+                    "clause": "Section 2.3 - Authorization Procedures",
+                    "relevance": 0.89,
+                    "page": 12
+                }
             ],
             "reasoning": "The query directly matches pre-authorization clauses in multiple policy documents. The system identified specific requirements, timelines, and exceptions with high confidence based on exact keyword matching and contextual analysis."
         }
@@ -273,12 +254,12 @@ def generate_intelligent_response(query: str, options: Dict[str, Any]) -> Dict[s
             "answer": "Based on the available policy documents, I found relevant information addressing your query. The policy contains specific provisions and conditions that apply to your situation. Please refer to the source documents for detailed terms and conditions.",
             "confidence": 0.75,
             "sources": [
-                Source(
-                    document="General_Policy_Terms.pdf",
-                    clause="Section 1.1 - General Provisions",
-                    relevance=0.78,
-                    page=5
-                )
+                {
+                    "document": "General_Policy_Terms.pdf",
+                    "clause": "Section 1.1 - General Provisions",
+                    "relevance": 0.78,
+                    "page": 5
+                }
             ],
             "reasoning": "The system performed semantic search across all available documents and identified potentially relevant clauses. The confidence score is moderate due to the general nature of the query and limited specific matches."
         }
